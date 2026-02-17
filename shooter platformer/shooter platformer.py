@@ -8,10 +8,7 @@ import button
 pygame.init()
 mixer.init
 """notes:
-- add need to kill all enemies to exit level
-- add satchel ability
-- better death physics in water and off screen
-- shouldnt be able to jump when on the side of a tile"""
+- game doneeeee"""
 #screen sizing
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.8)
@@ -27,8 +24,8 @@ fps = 60
 #define game variables
 GRAVITY = 0.75
 SCROLL_THRESH = 200
-GROUND_FRICTION = 0.1
-ENERGY_LOSS_MULTIPLIER = 0.7
+GROUND_FRICTION = 0.2
+BOUNCYNESS = 0.6
 ROWS = 16
 COLS = 150
 TILE_SIZE = screen.get_height() // ROWS
@@ -39,6 +36,7 @@ start_game = False
 start_intro = False
 MAX_LEVElS = 3
 level = 1
+enemies_alive = 0
 
 #define soldier action variables
 moving_left = False
@@ -188,6 +186,8 @@ def reset_level():
     decoration_group.empty()
     exit_group.empty()
     water_group.empty()
+    global enemies_alive
+    enemies_alive = 0
     #create empty tile list
     data = []
     for row in range(ROWS):
@@ -332,14 +332,21 @@ class soldier(pygame.sprite.Sprite):
                     self.in_air = False
 
         #check if in water
+        temporaryrect = self.rect.copy() 
+        temporaryrect.y -= self.height
+        if self.show_hitbox:
+            pygame.draw.rect(screen, WHITE, temporaryrect, 1)
         for water in water_group:
-            if water.rect.colliderect(self.rect.x + dx, self.rect.y + dy, self.width, self.height):
+            if water.rect.colliderect(temporaryrect):
                 self.health = 0
 
         #check if hit exit
         level_complete = False
-        if pygame.sprite.spritecollide(self, exit_group, False):
+        if pygame.sprite.spritecollide(self, exit_group, False) and enemies_alive < 1:
             level_complete = True
+        elif pygame.sprite.spritecollide(self, exit_group, False):
+            draw_text("you need to kill more enemies to pass", ui_font, RED, 170, 0)
+        print(enemies_alive)
 
         #check if off bottom of screen
         if self.rect.top > SCREEN_HEIGHT:
@@ -379,6 +386,9 @@ class soldier(pygame.sprite.Sprite):
             self.speed = 0
             self.alive = False
             self.update_action(3)
+            if self.char_type == "enemy":
+                global enemies_alive
+                enemies_alive -= 1
 
     #shoot bullet
     def shoot(self):
@@ -520,6 +530,8 @@ class World():
                     elif tile == 16:
                         enemy = soldier("enemy", x * TILE_SIZE, y * TILE_SIZE, 1.65, 2, 20, 0)#enemy
                         enemy_group.add(enemy)
+                        global enemies_alive
+                        enemies_alive += 1
                     elif tile == 17:
                         item_box = ItemBox("Ammo", x * TILE_SIZE, y * TILE_SIZE)#ammo
                         item_box_group.add(item_box)
@@ -747,7 +759,7 @@ class Grenade(pygame.sprite.Sprite):
         #check collision with screen
         if self.rect.left + true_dx < 0 or self.rect.right + true_dx > SCREEN_WIDTH:
             self.direction *= -1
-            true_dx = self.direction * speed_mag * ENERGY_LOSS_MULTIPLIER
+            true_dx = self.direction * speed_mag * BOUNCYNESS
 
         # Vertical movement and collision
         self.rect.y += dy
@@ -755,13 +767,13 @@ class Grenade(pygame.sprite.Sprite):
             if tile[1].colliderect(self.rect):
                 if dy > 0:
                     self.rect.bottom = tile[1].top
-                    self.vel_y = -self.vel_y * ENERGY_LOSS_MULTIPLIER
+                    self.vel_y = -self.vel_y * BOUNCYNESS
                     self.bounce_counter += 1
                     if abs(self.vel_y) < 2:
                         self.vel_y = 0
                 elif dy < 0:
                     self.rect.top = tile[1].bottom
-                    self.vel_y = -self.vel_y * ENERGY_LOSS_MULTIPLIER
+                    self.vel_y = -self.vel_y * BOUNCYNESS
 
         # Horizontal movement and collision
         self.rect.x += true_dx
@@ -770,37 +782,36 @@ class Grenade(pygame.sprite.Sprite):
                 if true_dx > 0:
                     self.rect.right = tile[1].left
                     self.direction *= -1
-                    self.speed *= ENERGY_LOSS_MULTIPLIER
+                    self.speed *= BOUNCYNESS
                 elif true_dx < 0:
                     self.rect.left = tile[1].right
                     self.direction *= -1
-                    self.speed *= ENERGY_LOSS_MULTIPLIER
-
+                    self.speed *= BOUNCYNESS
         # Apply screen scroll to x position
         self.rect.x += screen_scroll
 
         #countdown timer once grenade stops moving
         if abs(self.true_dx) < 0.1 and abs(self.vel_y) < 0.1:
             self.timer -= 1
-            if self.timer <= 0:
-                self.kill()
-                #create explosion
-                grenade_fx.play()
-                explosion = Explosion(self.rect.centerx, self.rect.centery, 1.5)
-                explosion_group.add(explosion)
-                #damage
-                if abs(self.rect.centerx - player.rect.centerx) < TILE_SIZE * 2 and abs(self.rect.centery - player.rect.centery) < TILE_SIZE * 2:                        
-                    if player.alive:
-                        player.health -= 100
-                elif abs(self.rect.centerx - player.rect.centerx) < TILE_SIZE * 4 and abs(self.rect.centery - player.rect.centery) < TILE_SIZE * 4:                        
-                    if player.alive:
-                        player.health -= 50
-                for enemy in enemy_group:
-                    if abs(self.rect.centerx - enemy.rect.centerx) < TILE_SIZE * 2 and abs(self.rect.centery - enemy.rect.centery) < TILE_SIZE * 2:
-                        enemy.health -= 100
-                    elif abs(self.rect.centerx - enemy.rect.centerx) < TILE_SIZE * 4 and abs(self.rect.centery - enemy.rect.centery) < TILE_SIZE * 4:
-                        enemy.health -= 50
-        
+        if self.timer <= 0:
+            self.kill()
+            #create explosion
+            grenade_fx.play()
+            explosion = Explosion(self.rect.centerx, self.rect.centery, 1.5)
+            explosion_group.add(explosion)
+            #damage
+            if abs(self.rect.centerx - player.rect.centerx) < TILE_SIZE * 1 and abs(self.rect.centery - player.rect.centery) < TILE_SIZE * 1:                        
+                if player.alive:
+                    player.health -= 100
+            elif abs(self.rect.centerx - player.rect.centerx) < TILE_SIZE * 2 and abs(self.rect.centery - player.rect.centery) < TILE_SIZE * 2:                        
+                if player.alive:
+                    player.health -= 50
+            for enemy in enemy_group:
+                if abs(self.rect.centerx - enemy.rect.centerx) < TILE_SIZE * 1 and abs(self.rect.centery - enemy.rect.centery) < TILE_SIZE * 1:
+                    enemy.health -= 100
+                elif abs(self.rect.centerx - enemy.rect.centerx) < TILE_SIZE * 2 and abs(self.rect.centery - enemy.rect.centery) < TILE_SIZE * 2:
+                    enemy.health -= 50
+    
 #explosion class
 class Explosion(pygame.sprite.Sprite):
 
@@ -842,6 +853,8 @@ class Explosion(pygame.sprite.Sprite):
 
 #screen fade
 class ScreenFade():
+
+    #initialize
     def __init__(self, direction, color, speed):
         self.direction = direction
         self.color = color
@@ -866,8 +879,8 @@ class ScreenFade():
         return fade_complete
         
 #create screen fade
-intro_fade = ScreenFade(1, BLACK, 4)
-death_fade = ScreenFade(2, PINK, 4)
+intro_fade = ScreenFade(1, BLACK, 8)
+death_fade = ScreenFade(2, PINK, 8)
 
 #create buttons
 start_button = button.Button(SCREEN_WIDTH // 2 - 130, SCREEN_HEIGHT // 2 - 150, start_img, 1)
@@ -973,7 +986,7 @@ while run:
         #hitbox status
         #draw_text(f"Hitboxes: {'ON' if show_all_hitboxes else 'OFF'} (H to toggle)", info_font, RED, 10, 500)
 
-        #activate and update player actions if alive 
+        #player action if alive 
         if player.alive:
 
             #shoot bullets
@@ -1017,6 +1030,11 @@ while run:
 
         #restart screen if dead
         else:
+            for enemy in enemy_group:
+                enemy.ai()
+                enemy.move(moving_left, moving_right)
+                enemy.update()
+                enemy.draw()
             screen_scroll = 0
             if death_fade.fade():
                 if restart_button.draw(screen):
@@ -1042,16 +1060,19 @@ while run:
 
         #keyboard press
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_w and player.alive:
+            if event.key == pygame.K_w and player.alive and not paused:
                 player.jump = True
             if event.key == pygame.K_SPACE:
                 shoot = True
             if event.key == pygame.K_e:
                 throw_grenade = True
-            if event.key == pygame.K_a:
+            if event.key == pygame.K_a and not paused:
                 moving_left = True
-            if event.key == pygame.K_d:
+            if event.key == pygame.K_d and not paused:
                 moving_right = True
+            if event.key == pygame.K_q:
+                for grenade in grenade_group:
+                    grenade.timer = 0
             if event.key == pygame.K_ESCAPE:
                 run = False
             if event.key == pygame.K_h:
@@ -1082,14 +1103,14 @@ while run:
 
         #keyboard release
         if event.type == pygame.KEYUP:
-            if event.key == pygame.K_SPACE:
+            if event.key == pygame.K_SPACE and not paused:
                 shoot = False
             if event.key == pygame.K_e:
                 throw_grenade = False
                 grenade_thrown = False
-            if event.key == pygame.K_a:
+            if event.key == pygame.K_a and not paused:
                 moving_left = False
-            if event.key == pygame.K_d:
+            if event.key == pygame.K_d and not paused:
                 moving_right = False
 
     #draw entity rect for game pause
