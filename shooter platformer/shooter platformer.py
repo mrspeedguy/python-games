@@ -9,6 +9,7 @@ pygame.init()
 mixer.init
 """notes:
 - game doneeeee"""
+
 #screen sizing
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.8)
