@@ -347,7 +347,6 @@ class soldier(pygame.sprite.Sprite):
             level_complete = True
         elif pygame.sprite.spritecollide(self, exit_group, False):
             draw_text("you need to kill more enemies to pass", ui_font, RED, 170, 0)
-        print(enemies_alive)
 
         #check if off bottom of screen
         if self.rect.top > SCREEN_HEIGHT:
