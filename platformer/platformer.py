@@ -58,11 +58,12 @@ class World():
 #player
 class Player():
     def __init__(self, x, y):
-        img = pygame.image.load("platformer/platformer_assets/img/player.png")
+        img = pygame.image.load("platformer/platformer_assets/img/guy1.png")
         self.image = pygame.transform.scale(img, (40, 80))
         self.rect = self.image.get_rect()
         self.rect.x = x
-        self.rect.y = ya
+        self.rect.y = y
+
 
 world_data = [
     [1,1,1,1,1],
@@ -72,6 +73,8 @@ world_data = [
     [1,2,2,2,1]
 ]
 
+#instances
+player = Player(100, screen_height - 130)
 world = World(world_data)
 
 print(world.tile_list)
